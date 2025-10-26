@@ -1,5 +1,5 @@
 ﻿using P5RPC.Fnaf2.Configuration;
-using P5RPC.Fnaf2.Persona5;
+using P5RPC.Fnaf2.Effect;
 using P5RPC.Fnaf2.Template;
 
 using Reloaded.Hooks.Definitions.X64;
@@ -19,10 +19,18 @@ namespace P5RPC.Fnaf2;
 public unsafe class Mod : ModBase // <= Do not Remove.
 {
   [Function(CallingConventions.Microsoft)]
-  private delegate FieldTask *GetFieldMainTask();
+  private delegate void *AddMeshToGlobalAttachmentList(
+    void *param_1,
+    void *param_2, string? name, byte param_3);
 
   [Function(CallingConventions.Microsoft)]
-  private delegate void PlayFromSystemACBFunction(int cueId);
+  private delegate EPL *LoadEPLFromFilename(string param_1);
+
+  [Function(CallingConventions.Microsoft)]
+  private delegate void PlayFromSystemACB(int param_1);
+
+  [Function(CallingConventions.Microsoft)]
+  private delegate void RestartEPLPlayback(void *param_1);
 
   /// <summary>
   /// Provides access to the mod loader API.
@@ -55,10 +63,13 @@ public unsafe class Mod : ModBase // <= Do not Remove.
   /// </summary>
   private readonly IModConfig _modConfig;
 
-  private readonly bool                      *_pauseScreenVisible;
-  private readonly GetFieldMainTask?          _getFieldMainTask;
-  private readonly PlayFromSystemACBFunction? _playFromSystemACB;
-  private readonly nuint                     *_titleResProcInstance;
+  private readonly AddMeshToGlobalAttachmentList? _addMeshToGlobalAttachmentList;
+  private readonly bool                          *_pauseScreenVisible;
+  private readonly LoadEPLFromFilename?           _loadEplFromFilename;
+  private readonly PlayFromSystemACB?             _playFromSystemACB;
+  private readonly RestartEPLPlayback?            _restartEplPlayback;
+  private readonly nuint                         *_titleResProcInstance;
+  private readonly void                         **_rootGfdGlobalScene;
 
   public Mod(ModContext context) {
     Process process = Process.GetCurrentProcess();
@@ -70,6 +81,20 @@ public unsafe class Mod : ModBase // <= Do not Remove.
     _owner = context.Owner;
     _modConfig = context.ModConfig;
     _configuration = context.Configuration;
+
+    PatternScanResult addResult = scanner.FindPattern("48 89 5C 24 08 48 89 6C " +
+      "24 10 48 89 74 24 18 57 41 54 41 55 41 56 41 57 48 81 EC 20 01 00 00 45");
+
+    if (!addResult.Found) {
+      _logger.PrintMessage(
+        "Failed to locate `AddMeshToGlobalAttachmentList`! The mod will not work...",
+        Color.Red);
+
+      return;
+    }
+
+    _addMeshToGlobalAttachmentList = _hooks.CreateWrapper<AddMeshToGlobalAttachmentList>(
+      (process.MainModule!.BaseAddress + addResult.Offset), out _);
 
     PatternScanResult pauseResult = scanner.FindPattern("80 3D ?? ?? ?? ?? ?? 0F " +
       "84 A1 00 00 00");
@@ -85,19 +110,19 @@ public unsafe class Mod : ModBase // <= Do not Remove.
     _pauseScreenVisible = (bool *)(CmpInstructionToAbsoluteAddress(
       (byte *)(process.MainModule!.BaseAddress + pauseResult.Offset), 7));
 
-    PatternScanResult getResult = scanner.FindPattern("40 53 48 83 EC 20 48 8B " +
-      "1D ?? ?? ?? ?? 48 85 DB 0F 84 AB");
+    PatternScanResult loadResult = scanner.FindPattern("48 89 5C 24 08 57 48 83 " +
+      "EC 60 48 8B D9 E8 ?? ?? ?? ?? 45 33 C9 45 33 C0 33 D2 48 8B CB 48 8B F8 81 48");
 
-    if (!getResult.Found) {
+    if (!loadResult.Found) {
       _logger.PrintMessage(
-        "Failed to locate `TitleResProcInstance`! The mod will be unable to work.",
+        "Failed to locate `LoadEPLFromFilename`! The mod will not be functioning...",
         Color.Red);
 
       return;
     }
 
-    _getFieldMainTask = _hooks.CreateWrapper<GetFieldMainTask>(
-      (process.MainModule!.BaseAddress + getResult.Offset), out _);
+    _loadEplFromFilename = _hooks.CreateWrapper<LoadEPLFromFilename>(
+      (process.MainModule!.BaseAddress + loadResult.Offset), out _);
 
     PatternScanResult playResult = scanner.FindPattern(
       "40 53 48 83 EC 30 48 8B 1D ?? ?? ?? ?? 48 85 DB 74 25 8B 53 08 41");
@@ -110,8 +135,22 @@ public unsafe class Mod : ModBase // <= Do not Remove.
       return;
     }
 
-    _playFromSystemACB = _hooks.CreateWrapper<PlayFromSystemACBFunction>(
-      process.MainModule!.BaseAddress + playResult.Offset, out _);
+    _playFromSystemACB = _hooks.CreateWrapper<PlayFromSystemACB>(
+      (process.MainModule!.BaseAddress + playResult.Offset), out _);
+
+    PatternScanResult deleteResult = scanner.FindPattern("48 89 6C 24 18 57 48 " +
+      "83 EC 20 48 8B 79 50");
+
+    if (!deleteResult.Found) {
+      _logger.PrintMessage(
+        "Failed to locate `RestartEPLPlayback`! The mod will be unable to function...",
+        Color.Red);
+
+      return;
+    }
+
+    _restartEplPlayback = _hooks.CreateWrapper<RestartEPLPlayback>(
+      (process.MainModule!.BaseAddress + deleteResult.Offset), out _);
 
     PatternScanResult titleResult = scanner.FindPattern("48 8B 0D ?? ?? ?? ?? 48 " +
       "85 C9 74 0F 48 8B 41 48 66 44 39 78 02 0F 82 6B 07 00 00");
@@ -126,6 +165,20 @@ public unsafe class Mod : ModBase // <= Do not Remove.
 
     _titleResProcInstance = (nuint *)(MovInstructionToAbsoluteAddress(
       (byte *)(process.MainModule!.BaseAddress + titleResult.Offset), 7));
+
+    PatternScanResult rootResult = scanner.FindPattern("48 8B 0D ?? ?? ?? ?? 48 " +
+      "85 C9 74 05 E8 ?? ?? ?? ?? 48 8B 05");
+
+    if (!rootResult.Found) {
+      _logger.PrintMessage(
+        "Failed to locate `RootGfdGlobalScene`! The mod will be unable to function.",
+        Color.Red);
+
+      return;
+    }
+
+    _rootGfdGlobalScene = (void **)(MovInstructionToAbsoluteAddress(
+      (byte *)(process.MainModule!.BaseAddress + rootResult.Offset), 7));
 
     /* TODO: Look into a better way of executing code, potentially via a `Present`
        hook?
@@ -152,8 +205,20 @@ public unsafe class Mod : ModBase // <= Do not Remove.
     return (nextInstructionAddress + offset);
   }
 
-  private void PlayEpl(int id) {
-    FieldTask *task = _getFieldMainTask!();
+  private bool HasEPLAnimationFinished(EPL *epl) {
+    if ((epl->eplFlags & EPLFlags.LoopPlayback) is not 0)
+      return false;
+
+    if (epl->eplAnimation is null)
+      return true;
+
+    float duration;
+    if (epl->eplAnimation->eplAnimStart is null)
+      duration = epl->eplAnimation->Animation->Duration;
+    else
+      duration = epl->eplAnimation->eplAnimStart->Duration;
+
+    return (epl->timeElapsed >= duration);
   }
 
   private void TaskMain(object? state) {
@@ -169,29 +234,40 @@ public unsafe class Mod : ModBase // <= Do not Remove.
     while ((*_titleResProcInstance) is 0)
       Thread.Yield();
 
-    while (true) {
-      if (watch.ElapsedMilliseconds < 1000)
-        continue;
+    EPL *epl = _loadEplFromFilename!("FIELD/EFFECT/BANK/FB803.EPL");
+    void *mesh = null;
 
-      if ((*_titleResProcInstance) is not 0) {
-        /* We will wait until we exit the titlescreen to resume the loop again. */
-        while ((*_titleResProcInstance) is not 0)
-          Thread.Yield();
-      }
+    while (true) {
+      if (watch.ElapsedMilliseconds < _configuration.Interval)
+        continue;
 
       /* Don't `Restart` the timer and instead postpone the `Random.Next` call. */
       if ((*_pauseScreenVisible))
         continue;
 
       /* Should be equivalent to a 1 in 10,000 chance. */
-      if (random.Next(_configuration.Begin, _configuration.End) != _configuration.Begin) {
+      int number = random.Next(_configuration.Begin, _configuration.End);
+
+      if (_configuration.RandomizationDebug)
+        _logger.PrintMessage($"[P5RPC.Fnaf2] Random Number: {number}", Color.Pink);
+
+      /* If the random number does not match the set beginning of the range, there
+         should not be a jumpscare. 
+      */
+      if (number != _configuration.Begin) {
         watch.Restart();
         continue;
       }
 
       /* Jumpscare implementation. */
-      PlayEpl(803);
+      if (mesh is null)
+        mesh = _addMeshToGlobalAttachmentList!((*_rootGfdGlobalScene), epl, null, 0);
+
       _playFromSystemACB!(9801);
+      _restartEplPlayback!(epl);
+
+      while (!HasEPLAnimationFinished(epl))
+        Thread.Yield();
 
       /* Once one second has elapsed, we'll need to `Restart` to measure again. */
       watch.Restart();
@@ -199,13 +275,13 @@ public unsafe class Mod : ModBase // <= Do not Remove.
   }
 
   #region Standard Overrides
-	public override void ConfigurationUpdated(Config configuration)
-	{
-		// Apply settings from configuration.
-		// ... your code here.
-		_configuration = configuration;
-		_logger.WriteLine($"[{_modConfig.ModId}] Config Updated: Applying");
-	}
+  public override void ConfigurationUpdated(Config configuration)
+  {
+  	// Apply settings from configuration.
+  	// ... your code here.
+  	_configuration = configuration;
+  	_logger.WriteLine($"[{_modConfig.ModId}] Config Updated: Applying");
+  }
 	#endregion
 
   #region For Exports, Serialization etc.

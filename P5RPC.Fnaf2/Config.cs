@@ -41,6 +41,18 @@ namespace P5RPC.Fnaf2.Configuration
       "10,000, it will not include 10,000.")]
 		[DefaultValue(10000)]
 		public int End { get; set; } = 10000;
+
+    [Category("Timing")]
+    [DisplayName("Interval: Milliseconds")]
+    [Description("The interval at which jumpscares could potentially occur.")]
+    [DefaultValue(1000)]
+    public int Interval { get; set; } = 1000;
+
+    [Category("Debugging")]
+    [DisplayName("Randomization: Logging")]
+    [Description("Always prints the randomly generated value to the console, regardless of whether a jumpscare occurs.")]
+    [DefaultValue(false)]
+    public bool RandomizationDebug { get; set; }
   }
 
   /// <summary>
