@@ -1,0 +1,46 @@
+{
+  "ModId": "P5RPC.Fnaf2",
+  "ModName": "1/10000 Chance for Fnaf 2 Jumpscare Every Second",
+  "ModAuthor": "Me",
+  "ModVersion": "1.0.0",
+  "ModDescription": "Description",
+  "ModDll": "P5RPC.Fnaf2.dll",
+  "ModIcon": "Preview.png",
+  "ModR2RManagedDll32": "x86/P5RPC.Fnaf2.dll",
+  "ModR2RManagedDll64": "x64/P5RPC.Fnaf2.dll",
+  "ModNativeDll32": "",
+  "ModNativeDll64": "",
+  "Tags": [],
+  "CanUnload": false,
+  "HasExports": false,
+  "IsLibrary": false,
+  "ReleaseMetadataFileName": "P5RPC.Fnaf2.ReleaseMetadata.json",
+  "PluginData": {
+    "GitHubDependencies": {
+      "IdToConfigMap": {
+        "reloaded.sharedlib.hooks": {
+          "Config": {
+            "UserName": "Sewer56",
+            "RepositoryName": "Reloaded.SharedLib.Hooks.ReloadedII",
+            "UseReleaseTag": true,
+            "AssetFileName": "reloaded.sharedlib.hooks.zip"
+          },
+          "ReleaseMetadataName": "Sewer56.Update.ReleaseMetadata.json"
+        }
+      }
+    }
+  },
+  "IsUniversalMod": false,
+  "ModDependencies": [
+    "p5rpc.lib",
+    "reloaded.sharedlib.hooks",
+    "Ryo.Reloaded"
+  ],
+  "OptionalDependencies": [],
+  "SupportedAppId": [
+    "p5r.exe"
+  ],
+  "ProjectUrl": "",
+  "CreatorUrl": "",
+  "IsSeparator": false
+}
