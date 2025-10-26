@@ -249,7 +249,7 @@ public unsafe class Mod : ModBase // <= Do not Remove.
       int number = random.Next(_configuration.Begin, _configuration.End);
 
       if (_configuration.RandomizationDebug) {
-        _logger.PrintMessage($"[{_modConfig.ModName}] Random Number: {number}",
+        _logger.PrintMessage($"[{_modConfig.ModId}] Random Number: {number}",
           Color.Pink);
       }
 
