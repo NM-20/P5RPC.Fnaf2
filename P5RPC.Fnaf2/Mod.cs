@@ -248,8 +248,10 @@ public unsafe class Mod : ModBase // <= Do not Remove.
       /* Should be equivalent to a 1 in 10,000 chance. */
       int number = random.Next(_configuration.Begin, _configuration.End);
 
-      if (_configuration.RandomizationDebug)
-        _logger.PrintMessage($"[P5RPC.Fnaf2] Random Number: {number}", Color.Pink);
+      if (_configuration.RandomizationDebug) {
+        _logger.PrintMessage($"[{_modConfig.ModName}] Random Number: {number}",
+          Color.Pink);
+      }
 
       /* If the random number does not match the set beginning of the range, there
          should not be a jumpscare. 
